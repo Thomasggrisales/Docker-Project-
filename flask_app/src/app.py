@@ -219,7 +219,7 @@ def query_data():
 # app.py - Función json_api_data modificada para JSON API
 from collections import defaultdict
 
-@app.route('/json_api_data', methods=['GET'])
+@app.route('/json_api_data', methods=['POST'])
 def json_api_data():
     if sensor1_collection is None:
         return jsonify({"error": "La conexión a MongoDB no está disponible."}), 503
@@ -259,11 +259,12 @@ def json_api_data():
                 "value": value
             })
 
-        return jsonify(grouped_data)
+        return jsonify(grouped_data), 200
 
     except Exception as e:
         print("ERROR JSON API:", str(e))
         return jsonify({"error": str(e)}), 500
+
 
 
 

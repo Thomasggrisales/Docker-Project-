@@ -7,6 +7,9 @@ from datetime import datetime
 from dateutil import parser 
 from collections import defaultdict
 
+from zoneinfo import ZoneInfo
+
+
 # Definimos la ruta al archivo .env
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 
@@ -219,7 +222,9 @@ def query_data():
 # app.py - Función json_api_data modificada para JSON API
 from collections import defaultdict
 
-@app.route('/json_api_data', methods=['POST'])
+colombia = ZoneInfo("America/Bogota")
+
+@app.route('/json_api_data', methods=['GET','POST'])
 def json_api_data():
     if sensor1_collection is None:
         return jsonify({"error": "La conexión a MongoDB no está disponible."}), 503
@@ -237,7 +242,6 @@ def json_api_data():
             value = doc.get("valor")
             ts = doc.get("timestamp")
 
-            # Validaciones obligatorias
             if sensor_type is None or value is None or ts is None:
                 continue
 
@@ -251,7 +255,10 @@ def json_api_data():
             if isinstance(ts, dict) and "$date" in ts:
                 ts = datetime.fromtimestamp(int(ts["$date"]["$numberLong"]) / 1000)
 
-            # Convertir a ISO 8601
+            # Convertir UTC → Colombia
+            ts = ts.replace(tzinfo=ZoneInfo("UTC")).astimezone(colombia)
+
+            # Convertir a ISO 8601 con zona horaria
             time_str = ts.isoformat()
 
             grouped_data[sensor_type].append({

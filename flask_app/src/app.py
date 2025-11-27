@@ -23,13 +23,8 @@ MONGO_PASSWORD= os.getenv('MONGO_PASSWORD', '1234PA*')
 
 MONGO_URI = os.getenv('MONGO_URI')
 
-
-# Get Mongo URI from environment
-MONGO_URI = os.getenv('MONGO_URI')
-
 app = Flask(__name__)
 
-# ✅ Correct config key name
 app.config["MONGO_URI"] = MONGO_URI
 
 
@@ -52,7 +47,7 @@ def enviar_dato():
         try:
             
             dato_sensor = {"sensor": "temperatura_prueba", "valor": 30.1, "unidad": "C"}
-            # Insertamos el dato en la colección 'sensor1'
+            # Insertamos el dato en la colección sensor
             result = sensor1_collection.insert_one(dato_sensor)
             return jsonify({
                 "mensaje": "Dato de prueba agregado exitosamente a 'sensor'",
@@ -122,7 +117,6 @@ def insert_data():
         return jsonify({"error": "No hay conexión a la base de datos"}), 503
 
     dato = {
-        # Usamos nombres exactos para probar: Temperature y Humidity
         "sensor": "Temperature_Test", 
         "valor": 20.9,
         "unidad": "C",
@@ -131,21 +125,20 @@ def insert_data():
     result = sensor1_collection.insert_one(dato)
     return jsonify({"mensaje": "Dato agregado", "id": str(result.inserted_id)}), 201
 
-# 🔹 1. Endpoint de Estado (/)
+# Endpoint de estado
 @app.route('/', methods=['GET'])
 def root_path():
     """Ruta usada por Grafana para probar conexión."""
     return 'OK', 200
 
-# 🔹 2. Endpoint de Búsqueda (/search)
+# Endpoint de búsqueda
 @app.route('/search', methods=['GET', 'POST'])
 def search_metrics():
     """Retorna la lista de métricas (valores del campo 'sensor') disponibles."""
-    # Los nombres DEBEN COINCIDIR EXACTAMENTE con el valor del campo 'sensor' en tu DB
     metrics = ["Temperature", "Humidity"] 
     return jsonify(metrics)
 
-# 🔹 3. Endpoint de Consulta (/query)
+# Endpoint de consulta 
 @app.route('/query', methods=['POST'])
 def query_data():
     """Consulta MongoDB dentro del rango de tiempo y filtra por el nombre del sensor."""
@@ -154,7 +147,7 @@ def query_data():
 
     req_data = request.get_json(silent=True)
     
-    # 1. Verificación de solicitud y extracción de targets/range
+    # Verificación de solicitud y extracción de targets y range
     if not req_data or 'range' not in req_data or 'targets' not in req_data:
         return jsonify({"error": "Solicitud JSON inválida o incompleta."}), 400
 
@@ -163,7 +156,7 @@ def query_data():
         time_to_str = req_data['range']['to']
         targets = req_data['targets']
         
-        # Parsear las cadenas de tiempo
+        # Parsea las cadenas de tiempo
         time_from = parser.parse(time_from_str)
         time_to = parser.parse(time_to_str)
     except Exception as e:
@@ -173,42 +166,38 @@ def query_data():
 
     response_data = []
 
-    # 2. Iterar sobre las métricas solicitadas
     for target_info in targets:
         metric_name = target_info['target']
         datapoints = []
         
-        # 3. Consulta MongoDB (Filtrando por tiempo Y por el valor del campo 'sensor')
+        # Consulta en MongoDB filtrando por tiempo y por el valor del campo sensor
         query_by_metric = {
             'timestamp': {'$gte': time_from, '$lte': time_to},
             'sensor': metric_name 
         }
         
-        # Proyección: Solo necesitamos 'valor' y 'timestamp'
         projection_by_metric = {'valor': 1, 'timestamp': 1, '_id': 0}
         
         cursor = sensor1_collection.find(query_by_metric, projection_by_metric).sort("timestamp", 1)
 
-        # 4. Formateo de los datos
         for doc in cursor:
             try:
                 # Accede al campo 'valor'
                 value = doc.get('valor')
                 timestamp_obj = doc.get('timestamp')
                 
-                # Conversión de tipos y formato
                 if value is not None and timestamp_obj:
-                    # Convertir el valor a float si es necesario
+                    # Convierte el valor a float 
                     value = float(value) 
-                    # Convertir datetime a milisegundos desde la época (EPOCH)
+                    # Convierte el datetime a milisegundos
                     timestamp_ms = int(timestamp_obj.timestamp() * 1000)
                     
                     datapoints.append([value, timestamp_ms])
             except Exception as inner_e:
-                print(f"⚠️ Documento de DB con error de tipo (valor o timestamp): {inner_e}")
-                continue # Saltar este documento y seguir con el siguiente
+                print(f"Documento de DB con error de tipo (valor o timestamp): {inner_e}")
+                continue
 
-        # 5. Agregar la serie al JSON de respuesta
+        # Agrega la serie al JSON de respuesta
         response_data.append({
             "target": metric_name,
             "datapoints": datapoints
@@ -216,10 +205,6 @@ def query_data():
 
     return jsonify(response_data)
 
-
-# app.py - Nuevo Endpoint
-
-# app.py - Función json_api_data modificada para JSON API
 from collections import defaultdict
 
 colombia = ZoneInfo("America/Bogota")
@@ -245,20 +230,18 @@ def json_api_data():
             if sensor_type is None or value is None or ts is None:
                 continue
 
-            # Convertir valor a float
             try:
                 value = float(value)
             except:
                 continue
 
-            # Convertir timestamp Mongo → datetime
+            # Convierte timestamp Mongo a datetime
             if isinstance(ts, dict) and "$date" in ts:
                 ts = datetime.fromtimestamp(int(ts["$date"]["$numberLong"]) / 1000)
 
-            # Convertir UTC → Colombia
             ts = ts.replace(tzinfo=ZoneInfo("UTC")).astimezone(colombia)
 
-            # Convertir a ISO 8601 con zona horaria
+            # Convierte a ISO 8601 con zona horaria
             time_str = ts.isoformat()
 
             grouped_data[sensor_type].append({
